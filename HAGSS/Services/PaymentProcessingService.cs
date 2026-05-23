@@ -16,6 +16,7 @@ public interface IPaymentProcessingService
 public sealed class PaymentProcessingService(
     AppDbContext db,
     IReservationActivityPublisher activityPublisher,
+    ISeatSnapshotBroadcaster seatSnapshotBroadcaster,
     ILogger<PaymentProcessingService> logger) : IPaymentProcessingService
 {
     private static readonly ResiliencePipeline PaymentPipeline = CreatePaymentPipeline();
@@ -69,6 +70,8 @@ public sealed class PaymentProcessingService(
             StatusCodes.Status200OK,
             message.ReservationId,
             "Payment confirmed; seat marked as sold."), cancellationToken);
+
+        await seatSnapshotBroadcaster.BroadcastAsync(message.EventId, cancellationToken);
     }
 
     private static ResiliencePipeline CreatePaymentPipeline()

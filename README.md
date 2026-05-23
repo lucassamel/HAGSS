@@ -2,6 +2,8 @@
 
 Seat reservation API designed for high throughput while preventing double booking of the same seat.
 
+> Portuguese documentation: [README.pt-BR.md](README.pt-BR.md)
+
 ## Architecture
 
 - **ASP.NET Core 10 Minimal APIs** — low-overhead HTTP endpoints for reservations
@@ -57,7 +59,7 @@ docker compose up --build
 
 The **load simulator** (`HAGSS.LoadSimulator`) starts after the API is healthy and runs continuous rounds. Each round picks a random number of users between 1 and 1000, assigns random timezones, and fires reservation requests against the sample event—with high probability of targeting the same “hot” seats to trigger race conditions.
 
-The **monitor** (`HAGSS.Monitor`) is a Blazor Server dashboard that streams live activity from the API via SignalR (`/hubs/reservations`), including accepts, conflicts, lock timeouts, and payment confirmations.
+The **monitor** (`HAGSS.Monitor`) is a Blazor Server dashboard with real-time updates via SignalR (`/hubs/reservations`): live event feed, counters, and **available** vs **confirmed** seat lists (plus pending-payment count).
 
 On first startup the API applies EF migrations and seeds a sample event with 200 seats.
 

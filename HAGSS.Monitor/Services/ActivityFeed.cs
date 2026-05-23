@@ -7,9 +7,16 @@ public sealed class ActivityFeed
     private readonly object _lock = new();
     private readonly LinkedList<ReservationActivityEvent> _events = new();
     private ActivityStatsSnapshot _stats = new(0, 0, 0, 0, 0, null);
+    private EventSeatsSnapshot? _seats;
     private string _connectionState = "Disconnected";
+    private long _version;
 
     public event Action? Changed;
+
+    public long Version
+    {
+        get { lock (_lock) return _version; }
+    }
 
     public string ConnectionState
     {
@@ -19,6 +26,11 @@ public sealed class ActivityFeed
     public ActivityStatsSnapshot Stats
     {
         get { lock (_lock) return _stats; }
+    }
+
+    public EventSeatsSnapshot? Seats
+    {
+        get { lock (_lock) return _seats; }
     }
 
     public IReadOnlyList<ReservationActivityEvent> Events
@@ -34,7 +46,7 @@ public sealed class ActivityFeed
     {
         lock (_lock)
             _connectionState = state;
-        Changed?.Invoke();
+        NotifyChanged();
     }
 
     public void AddEvent(ReservationActivityEvent activityEvent, int maxEvents)
@@ -44,19 +56,39 @@ public sealed class ActivityFeed
             _events.AddFirst(activityEvent);
             while (_events.Count > maxEvents)
                 _events.RemoveLast();
+            _version++;
         }
 
-        Changed?.Invoke();
+        NotifyChanged();
     }
 
     public void UpdateStats(ActivityStatsSnapshot stats)
     {
         lock (_lock)
+        {
             _stats = stats;
-        Changed?.Invoke();
+            _version++;
+        }
+
+        NotifyChanged();
     }
 
-    public void ReplaceSnapshot(IEnumerable<ReservationActivityEvent> events, ActivityStatsSnapshot stats, int maxEvents)
+    public void UpdateSeats(EventSeatsSnapshot snapshot)
+    {
+        lock (_lock)
+        {
+            _seats = snapshot;
+            _version++;
+        }
+
+        NotifyChanged();
+    }
+
+    public void ReplaceSnapshot(
+        IEnumerable<ReservationActivityEvent> events,
+        ActivityStatsSnapshot stats,
+        EventSeatsSnapshot? seats,
+        int maxEvents)
     {
         lock (_lock)
         {
@@ -64,8 +96,12 @@ public sealed class ActivityFeed
             foreach (var item in events.Take(maxEvents))
                 _events.AddLast(item);
             _stats = stats;
+            _seats = seats;
+            _version++;
         }
 
-        Changed?.Invoke();
+        NotifyChanged();
     }
+
+    private void NotifyChanged() => Changed?.Invoke();
 }

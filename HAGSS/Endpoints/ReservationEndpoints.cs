@@ -36,6 +36,16 @@ public static class ReservationEndpoints
         })
         .WithName("ListSeats");
 
+        group.MapGet("/events/{eventId:guid}/seats/snapshot", async (
+            Guid eventId,
+            ISeatSnapshotService snapshotService,
+            CancellationToken ct) =>
+        {
+            var snapshot = await snapshotService.GetSnapshotAsync(eventId, ct);
+            return snapshot is null ? Results.NotFound() : Results.Ok(snapshot);
+        })
+        .WithName("GetSeatSnapshot");
+
         group.MapPost("/events/{eventId:guid}/seats/{seatId:guid}/reserve", async (
             Guid eventId,
             Guid seatId,

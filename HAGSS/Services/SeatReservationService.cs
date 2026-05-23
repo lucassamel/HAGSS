@@ -14,6 +14,7 @@ public sealed class SeatReservationService(
     IRedisDistributedLock distributedLock,
     IPaymentPublisher paymentPublisher,
     IReservationActivityPublisher activityPublisher,
+    ISeatSnapshotBroadcaster seatSnapshotBroadcaster,
     IOptions<ReservationOptions> reservationOptions,
     ILogger<SeatReservationService> logger) : ISeatReservationService
 {
@@ -112,6 +113,7 @@ public sealed class SeatReservationService(
             logger.LogInformation("Reservation {ReservationId} created for seat {SeatId}", reservation.Id, seatId);
             var success = ReservationResult.Ok(reservation.Id);
             await PublishAsync(eventId, seatId, $"{seat.Row}-{seat.Number}", customerEmail, timeZoneId, clientId, source, success, StatusCodes.Status202Accepted, cancellationToken);
+            await seatSnapshotBroadcaster.BroadcastAsync(eventId, cancellationToken);
             return success;
         }
     }

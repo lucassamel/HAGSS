@@ -16,6 +16,7 @@ builder.Services.AddHttpClient("hagss-api", client =>
 
 builder.Services.AddSingleton<ActivityFeed>();
 builder.Services.AddHostedService<ApiActivityListener>();
+builder.Services.AddHostedService<SeatSnapshotRefreshWorker>();
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 var app = builder.Build();

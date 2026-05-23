@@ -36,6 +36,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       Monitor__ApiBaseUrl: http://api:8080
+      Monitor__EventId: 11111111-1111-1111-1111-111111111111
+      Monitor__SeatRefreshIntervalSeconds: 5
     depends_on:
       api:
         condition: service_healthy

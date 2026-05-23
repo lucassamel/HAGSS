@@ -4,72 +4,17 @@
 
 <div class="toolbar">
     <span class="badge @ConnectionClass">@Feed.ConnectionState</span>
+    <span class="live-indicator @(Feed.ConnectionState == "Connected" ? "active" : "")">LIVE</span>
     <span class="meta">Last event: @(Feed.Stats.LastEventAtUtc?.ToString("u") ?? "—")</span>
 </div>
 
-<div class="stats-grid">
-    <div class="stat-card">
-        <span class="stat-label">Total events</span>
-        <span class="stat-value">@Feed.Stats.TotalEvents</span>
-    </div>
-    <div class="stat-card success">
-        <span class="stat-label">Accepted</span>
-        <span class="stat-value">@Feed.Stats.Accepted</span>
-    </div>
-    <div class="stat-card warning">
-        <span class="stat-label">Conflicts</span>
-        <span class="stat-value">@Feed.Stats.Conflicts</span>
-    </div>
-    <div class="stat-card accent">
-        <span class="stat-label">Lock timeouts</span>
-        <span class="stat-value">@Feed.Stats.LockTimeouts</span>
-    </div>
-    <div class="stat-card info">
-        <span class="stat-label">Payments confirmed</span>
-        <span class="stat-value">@Feed.Stats.PaymentConfirmed</span>
-    </div>
-</div>
-
-<div class="panel">
-    <h2>Live feed</h2>
-    <div class="table-wrap">
-        <table>
-            <thead>
-            <tr>
-                <th>Time (UTC)</th>
-                <th>Outcome</th>
-                <th>Seat</th>
-                <th>User</th>
-                <th>Timezone</th>
-                <th>Source</th>
-                <th>HTTP</th>
-                <th>Message</th>
-            </tr>
-            </thead>
-            <tbody>
-            @foreach (var item in Feed.Events)
-            {
-                <tr class="@OutcomeRowClass(item.Outcome)">
-                    <td class="mono">@item.OccurredAtUtc.ToString("HH:mm:ss.fff")</td>
-                    <td><span class="pill @OutcomeClass(item.Outcome)">@item.Outcome</span></td>
-                    <td class="mono">@(item.SeatLabel ?? item.SeatId.ToString()[..8])</td>
-                    <td>@ShortEmail(item.CustomerEmail)</td>
-                    <td>@(item.TimeZoneId ?? "—")</td>
-                    <td>@item.Source</td>
-                    <td>@item.HttpStatusCode</td>
-                    <td class="message">@(item.Message ?? "—")</td>
-                </tr>
-            }
-            </tbody>
-        </table>
-        @if (Feed.Events.Count == 0)
-        {
-            <p class="empty">Waiting for reservation activity…</p>
-        }
-    </div>
-</div>
+<StatsPanel/>
+<SeatsPanel/>
+<LiveFeedPanel @ref="_liveFeed"/>
 
 @code {
+    private LiveFeedPanel? _liveFeed;
+
     private string ConnectionClass => Feed.ConnectionState switch
     {
         "Connected" => "online",
@@ -79,31 +24,15 @@
 
     protected override void OnInitialized() => Feed.Changed += OnFeedChanged;
 
-    private void OnFeedChanged() => InvokeAsync(StateHasChanged);
-
-    public void Dispose() => Feed.Changed -= OnFeedChanged;
-
-    private static string ShortEmail(string email)
+    private void OnFeedChanged()
     {
-        var at = email.IndexOf('@');
-        return at <= 8 ? email : email[..8] + "…" + email[at..];
+        _ = InvokeAsync(async () =>
+        {
+            StateHasChanged();
+            if (_liveFeed is not null)
+                await _liveFeed.OnFeedUpdatedAsync();
+        });
     }
 
-    private static string OutcomeClass(ActivityOutcome outcome) => outcome switch
-    {
-        ActivityOutcome.Accepted => "pill-ok",
-        ActivityOutcome.PaymentConfirmed => "pill-pay",
-        ActivityOutcome.LockNotAcquired => "pill-lock",
-        ActivityOutcome.ConcurrencyConflict or ActivityOutcome.SeatNotAvailable => "pill-warn",
-        _ => "pill-neutral"
-    };
-
-    private static string OutcomeRowClass(ActivityOutcome outcome) => outcome switch
-    {
-        ActivityOutcome.Accepted => "row-ok",
-        ActivityOutcome.PaymentConfirmed => "row-pay",
-        ActivityOutcome.LockNotAcquired => "row-lock",
-        ActivityOutcome.ConcurrencyConflict or ActivityOutcome.SeatNotAvailable => "row-warn",
-        _ => ""
-    };
+    public void Dispose() => Feed.Changed -= OnFeedChanged;
 }

@@ -24,6 +24,8 @@ public static class ServiceCollectionExtensions
 
         services.AddSignalR();
         services.AddSingleton<IReservationActivityPublisher, ReservationActivityPublisher>();
+        services.AddSingleton<ISeatSnapshotBroadcaster, SeatSnapshotBroadcaster>();
+        services.AddScoped<ISeatSnapshotService, SeatSnapshotService>();
 
         services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(connections.Postgres));

@@ -27,7 +27,12 @@ public sealed class ApiActivityListener(
                 feed.SetConnectionState("Connecting");
                 _connection = new HubConnectionBuilder()
                     .WithUrl(hubUrl)
-                    .WithAutomaticReconnect()
+                    .WithAutomaticReconnect([
+                        TimeSpan.Zero,
+                        TimeSpan.FromSeconds(2),
+                        TimeSpan.FromSeconds(5),
+                        TimeSpan.FromSeconds(10),
+                        TimeSpan.FromSeconds(30)])
                     .Build();
 
                 _connection.Reconnecting += _ =>
@@ -60,6 +65,12 @@ public sealed class ApiActivityListener(
                     return Task.CompletedTask;
                 });
 
+                _connection.On<EventSeatsSnapshot>("SeatsUpdated", snapshot =>
+                {
+                    feed.UpdateSeats(snapshot);
+                    return Task.CompletedTask;
+                });
+
                 await _connection.StartAsync(stoppingToken);
                 feed.SetConnectionState("Connected");
                 logger.LogInformation("Connected to API activity hub at {HubUrl}", hubUrl);
@@ -84,14 +95,38 @@ public sealed class ApiActivityListener(
         try
         {
             var client = httpClientFactory.CreateClient("hagss-api");
-            var recent = await client.GetFromJsonAsync<List<ReservationActivityEvent>>(
+            var eventId = options.Value.EventId;
+
+            var recentTask = client.GetFromJsonAsync<List<ReservationActivityEvent>>(
                 $"/api/activity/recent?count={options.Value.MaxDisplayedEvents}",
                 cancellationToken);
 
-            var stats = await client.GetFromJsonAsync<ActivityStatsSnapshot>("/api/activity/stats", cancellationToken);
+            var statsTask = client.GetFromJsonAsync<ActivityStatsSnapshot>(
+                "/api/activity/stats",
+                cancellationToken);
+
+            var seatsTask = client.GetFromJsonAsync<EventSeatsSnapshot>(
+                $"/api/events/{eventId}/seats/snapshot",
+                cancellationToken);
+
+            await Task.WhenAll(recentTask, statsTask, seatsTask);
+
+            var recent = await recentTask;
+            var stats = await statsTask;
+            var seats = await seatsTask;
 
             if (recent is not null && stats is not null)
-                feed.ReplaceSnapshot(recent.OrderByDescending(e => e.OccurredAtUtc), stats, options.Value.MaxDisplayedEvents);
+            {
+                feed.ReplaceSnapshot(
+                    recent.OrderByDescending(e => e.OccurredAtUtc),
+                    stats,
+                    seats,
+                    options.Value.MaxDisplayedEvents);
+            }
+            else if (seats is not null)
+            {
+                feed.UpdateSeats(seats);
+            }
         }
         catch (Exception ex)
         {
