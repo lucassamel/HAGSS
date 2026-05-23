@@ -1,0 +1,12 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY ["HAGSS.LoadSimulator/HAGSS.LoadSimulator.csproj", "HAGSS.LoadSimulator/"]
+RUN dotnet restore "HAGSS.LoadSimulator/HAGSS.LoadSimulator.csproj"
+COPY HAGSS.LoadSimulator/ HAGSS.LoadSimulator/
+RUN rm -rf HAGSS.LoadSimulator/bin HAGSS.LoadSimulator/obj HAGSS.LoadSimulator/bin\\Debug
+RUN dotnet publish "HAGSS.LoadSimulator/HAGSS.LoadSimulator.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "HAGSS.LoadSimulator.dll"]

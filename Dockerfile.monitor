@@ -1,0 +1,16 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY ["HAGSS.Contracts/HAGSS.Contracts.csproj", "HAGSS.Contracts/"]
+COPY ["HAGSS.Monitor/HAGSS.Monitor.csproj", "HAGSS.Monitor/"]
+RUN dotnet restore "HAGSS.Monitor/HAGSS.Monitor.csproj"
+COPY HAGSS.Contracts/ HAGSS.Contracts/
+COPY HAGSS.Monitor/ HAGSS.Monitor/
+RUN rm -rf HAGSS.Monitor/bin HAGSS.Monitor/obj HAGSS.Monitor/bin\\Debug
+RUN dotnet publish "HAGSS.Monitor/HAGSS.Monitor.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "HAGSS.Monitor.dll"]
