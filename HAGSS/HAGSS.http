@@ -1,6 +1,24 @@
-@HAGSS_HostAddress = http://localhost:5234
+@host = http://localhost:8080
+@eventId = 11111111-1111-1111-1111-111111111111
+@seatId = {{seatId}}
+@reservationId = {{reservationId}}
 
-GET {{HAGSS_HostAddress}}/weatherforecast/
-Accept: application/json
+### Health
+GET {{host}}/health
 
-###
+### List events
+GET {{host}}/api/events
+
+### List seats
+GET {{host}}/api/events/{{eventId}}/seats
+
+### Reserve seat
+POST {{host}}/api/events/{{eventId}}/seats/{{seatId}}/reserve
+Content-Type: application/json
+
+{
+  "customerEmail": "user@example.com"
+}
+
+### Get reservation
+GET {{host}}/api/reservations/{{reservationId}}

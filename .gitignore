@@ -1,5 +1,8 @@
 bin/
 obj/
+# Rider on Windows/macOS may create a literal "bin\Debug" directory
+bin*/
+**/bin*/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/

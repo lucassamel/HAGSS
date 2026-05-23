@@ -1,0 +1,13 @@
+**/.git
+**/.idea
+**/.cursor
+
+# Build output (include Rider/Windows-style "bin\Debug" folder names)
+**/bin/
+**/obj/
+**/bin*/
+**/obj*/
+
+HAGSS/bin/
+HAGSS/obj/
+HAGSS/bin*/
