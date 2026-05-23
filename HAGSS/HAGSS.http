@@ -1,0 +1,6 @@
+@HAGSS_HostAddress = http://localhost:5234
+
+GET {{HAGSS_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
