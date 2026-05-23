@@ -1,0 +1,90 @@
+@inject ActivityFeed Feed
+
+<div class="panel live-panel">
+    <div class="panel-header">
+        <h2>Live feed</h2>
+        <span class="live-dot @(Feed.ConnectionState == "Connected" ? "on" : "")"></span>
+    </div>
+    <div class="table-wrap" @ref="_scrollContainer">
+        <table>
+            <thead>
+            <tr>
+                <th>Time (UTC)</th>
+                <th>Outcome</th>
+                <th>Seat</th>
+                <th>User</th>
+                <th>Timezone</th>
+                <th>Source</th>
+                <th>HTTP</th>
+                <th>Message</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var item in Feed.Events)
+            {
+                <tr class="feed-row @OutcomeRowClass(item.Outcome) @(item.Id == _highlightId ? "flash" : "")" @key="item.Id">
+                    <td class="mono">@item.OccurredAtUtc.ToString("HH:mm:ss.fff")</td>
+                    <td><span class="pill @OutcomeClass(item.Outcome)">@item.Outcome</span></td>
+                    <td class="mono">@(item.SeatLabel ?? item.SeatId.ToString()[..8])</td>
+                    <td>@ShortEmail(item.CustomerEmail)</td>
+                    <td>@(item.TimeZoneId ?? "—")</td>
+                    <td>@item.Source</td>
+                    <td>@item.HttpStatusCode</td>
+                    <td class="message">@(item.Message ?? "—")</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+        @if (Feed.Events.Count == 0)
+        {
+            <p class="empty">Waiting for reservation activity…</p>
+        }
+    </div>
+</div>
+
+@code {
+    private ElementReference _scrollContainer;
+    private Guid? _highlightId;
+    private long _lastVersion;
+
+    [Parameter]
+    public EventCallback OnNewActivity { get; set; }
+
+    public async Task OnFeedUpdatedAsync()
+    {
+        var latest = Feed.Events.FirstOrDefault();
+        if (latest is not null && Feed.Version != _lastVersion)
+        {
+            _highlightId = latest.Id;
+            _lastVersion = Feed.Version;
+            await InvokeAsync(StateHasChanged);
+            await Task.Delay(400);
+            _highlightId = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static string ShortEmail(string email)
+    {
+        var at = email.IndexOf('@');
+        return at <= 8 ? email : email[..8] + "…" + email[at..];
+    }
+
+    private static string OutcomeClass(ActivityOutcome outcome) => outcome switch
+    {
+        ActivityOutcome.Accepted => "pill-ok",
+        ActivityOutcome.PaymentConfirmed => "pill-pay",
+        ActivityOutcome.LockNotAcquired => "pill-lock",
+        ActivityOutcome.ConcurrencyConflict or ActivityOutcome.SeatNotAvailable => "pill-warn",
+        _ => "pill-neutral"
+    };
+
+    private static string OutcomeRowClass(ActivityOutcome outcome) => outcome switch
+    {
+        ActivityOutcome.Accepted => "row-ok",
+        ActivityOutcome.PaymentConfirmed => "row-pay",
+        ActivityOutcome.LockNotAcquired => "row-lock",
+        ActivityOutcome.ConcurrencyConflict or ActivityOutcome.SeatNotAvailable => "row-warn",
+        _ => ""
+    };
+}

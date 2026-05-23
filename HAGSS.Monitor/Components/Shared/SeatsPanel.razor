@@ -1,0 +1,53 @@
+@inject ActivityFeed Feed
+
+<div class="seats-grid">
+    <div class="panel seats-panel">
+        <div class="panel-header">
+            <h2>Available seats</h2>
+            <span class="count-badge available">@(Feed.Seats?.AvailableCount ?? 0)</span>
+        </div>
+        <p class="panel-hint">Seats open for reservation</p>
+        <div class="seat-chips scroll-chips">
+            @if (Feed.Seats?.Available is { Count: > 0 } available)
+            {
+                @foreach (var seat in available)
+                {
+                    <span class="seat-chip available" @key="seat.Id">@seat.Label</span>
+                }
+            }
+            else
+            {
+                <p class="empty-inline">No available seats</p>
+            }
+        </div>
+    </div>
+
+    <div class="panel seats-panel">
+        <div class="panel-header">
+            <h2>Confirmed seats</h2>
+            <span class="count-badge confirmed">@(Feed.Seats?.ConfirmedCount ?? 0)</span>
+        </div>
+        <p class="panel-hint">Payment completed (sold)</p>
+        <div class="seat-chips scroll-chips">
+            @if (Feed.Seats?.Confirmed is { Count: > 0 } confirmed)
+            {
+                @foreach (var seat in confirmed)
+                {
+                    <span class="seat-chip confirmed" @key="seat.Id">@seat.Label</span>
+                }
+            }
+            else
+            {
+                <p class="empty-inline">No confirmed seats yet</p>
+            }
+        </div>
+    </div>
+</div>
+
+@if (Feed.Seats is not null)
+{
+    <p class="seats-updated">
+        Seat map updated at <span class="mono">@Feed.Seats.UpdatedAtUtc.ToString("HH:mm:ss.fff")</span> UTC
+        · @Feed.Seats.ReservedCount pending payment
+    </p>
+}

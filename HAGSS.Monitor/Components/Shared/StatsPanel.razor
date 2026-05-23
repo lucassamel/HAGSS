@@ -1,0 +1,39 @@
+@inject ActivityFeed Feed
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <span class="stat-label">Total events</span>
+        <span class="stat-value pulse">@Feed.Stats.TotalEvents</span>
+    </div>
+    <div class="stat-card success">
+        <span class="stat-label">Accepted</span>
+        <span class="stat-value pulse">@Feed.Stats.Accepted</span>
+    </div>
+    <div class="stat-card warning">
+        <span class="stat-label">Conflicts</span>
+        <span class="stat-value pulse">@Feed.Stats.Conflicts</span>
+    </div>
+    <div class="stat-card accent">
+        <span class="stat-label">Lock timeouts</span>
+        <span class="stat-value pulse">@Feed.Stats.LockTimeouts</span>
+    </div>
+    <div class="stat-card info">
+        <span class="stat-label">Payments confirmed</span>
+        <span class="stat-value pulse">@Feed.Stats.PaymentConfirmed</span>
+    </div>
+    @if (Feed.Seats is not null)
+    {
+        <div class="stat-card">
+            <span class="stat-label">Available seats</span>
+            <span class="stat-value pulse">@Feed.Seats.AvailableCount</span>
+        </div>
+        <div class="stat-card success">
+            <span class="stat-label">Confirmed seats</span>
+            <span class="stat-value pulse">@Feed.Seats.ConfirmedCount</span>
+        </div>
+        <div class="stat-card accent">
+            <span class="stat-label">Pending payment</span>
+            <span class="stat-value pulse">@Feed.Seats.ReservedCount</span>
+        </div>
+    }
+</div>
