@@ -1,3 +1,4 @@
+using HAGSS.Contracts;
 using HAGSS.Data;
 using HAGSS.Data.Entities;
 using HAGSS.Infrastructure.Messaging;
@@ -12,6 +13,7 @@ public sealed class SeatReservationService(
     AppDbContext db,
     IRedisDistributedLock distributedLock,
     IPaymentPublisher paymentPublisher,
+    IReservationActivityPublisher activityPublisher,
     IOptions<ReservationOptions> reservationOptions,
     ILogger<SeatReservationService> logger) : ISeatReservationService
 {
@@ -19,7 +21,10 @@ public sealed class SeatReservationService(
         Guid eventId,
         Guid seatId,
         string customerEmail,
-        CancellationToken cancellationToken)
+        string? timeZoneId = null,
+        string? clientId = null,
+        string source = "api",
+        CancellationToken cancellationToken = default)
     {
         var options = reservationOptions.Value;
         var lockKey = $"seat:{eventId}:{seatId}";
@@ -32,7 +37,9 @@ public sealed class SeatReservationService(
         if (lockHandle is null)
         {
             logger.LogWarning("Could not acquire distributed lock for seat {SeatId}", seatId);
-            return ReservationResult.Fail(ReservationErrorCode.LockNotAcquired, "Seat is being reserved by another request. Try again.");
+            var lockFail = ReservationResult.Fail(ReservationErrorCode.LockNotAcquired, "Seat is being reserved by another request. Try again.");
+            await PublishAsync(eventId, seatId, null, customerEmail, timeZoneId, clientId, source, lockFail, StatusCodes.Status429TooManyRequests, cancellationToken);
+            return lockFail;
         }
 
         await using (lockHandle)
@@ -44,10 +51,18 @@ public sealed class SeatReservationService(
                 .FirstOrDefaultAsync(s => s.Id == seatId && s.EventId == eventId, cancellationToken);
 
             if (seat is null)
-                return ReservationResult.Fail(ReservationErrorCode.SeatNotFound, "Seat not found for this event.");
+            {
+                var notFound = ReservationResult.Fail(ReservationErrorCode.SeatNotFound, "Seat not found for this event.");
+                await PublishAsync(eventId, seatId, null, customerEmail, timeZoneId, clientId, source, notFound, StatusCodes.Status404NotFound, cancellationToken);
+                return notFound;
+            }
 
             if (seat.Status != SeatStatus.Available)
-                return ReservationResult.Fail(ReservationErrorCode.SeatNotAvailable, "Seat is no longer available.");
+            {
+                var unavailable = ReservationResult.Fail(ReservationErrorCode.SeatNotAvailable, "Seat is no longer available.");
+                await PublishAsync(eventId, seatId, $"{seat.Row}-{seat.Number}", customerEmail, timeZoneId, clientId, source, unavailable, StatusCodes.Status409Conflict, cancellationToken);
+                return unavailable;
+            }
 
             var rowsUpdated = await db.Seats
                 .Where(s => s.Id == seatId && s.EventId == eventId && s.Status == SeatStatus.Available)
@@ -58,7 +73,9 @@ public sealed class SeatReservationService(
             if (rowsUpdated == 0)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                return ReservationResult.Fail(ReservationErrorCode.ConcurrencyConflict, "Seat was reserved by another transaction.");
+                var conflict = ReservationResult.Fail(ReservationErrorCode.ConcurrencyConflict, "Seat was reserved by another transaction.");
+                await PublishAsync(eventId, seatId, $"{seat.Row}-{seat.Number}", customerEmail, timeZoneId, clientId, source, conflict, StatusCodes.Status409Conflict, cancellationToken);
+                return conflict;
             }
 
             var reservation = new Reservation
@@ -83,7 +100,9 @@ public sealed class SeatReservationService(
             {
                 await transaction.RollbackAsync(cancellationToken);
                 logger.LogWarning(ex, "Unique constraint prevented double booking for seat {SeatId}", seatId);
-                return ReservationResult.Fail(ReservationErrorCode.ConcurrencyConflict, "Seat was already reserved.");
+                var constraintFail = ReservationResult.Fail(ReservationErrorCode.ConcurrencyConflict, "Seat was already reserved.");
+                await PublishAsync(eventId, seatId, $"{seat.Row}-{seat.Number}", customerEmail, timeZoneId, clientId, source, constraintFail, StatusCodes.Status409Conflict, cancellationToken);
+                return constraintFail;
             }
 
             await paymentPublisher.PublishAsync(
@@ -91,7 +110,49 @@ public sealed class SeatReservationService(
                 cancellationToken);
 
             logger.LogInformation("Reservation {ReservationId} created for seat {SeatId}", reservation.Id, seatId);
-            return ReservationResult.Ok(reservation.Id);
+            var success = ReservationResult.Ok(reservation.Id);
+            await PublishAsync(eventId, seatId, $"{seat.Row}-{seat.Number}", customerEmail, timeZoneId, clientId, source, success, StatusCodes.Status202Accepted, cancellationToken);
+            return success;
         }
     }
+
+    private async Task PublishAsync(
+        Guid eventId,
+        Guid seatId,
+        string? seatLabel,
+        string customerEmail,
+        string? timeZoneId,
+        string? clientId,
+        string source,
+        ReservationResult result,
+        int httpStatus,
+        CancellationToken cancellationToken)
+    {
+        var activity = new ReservationActivityEvent(
+            Guid.NewGuid(),
+            DateTime.UtcNow,
+            eventId,
+            seatId,
+            seatLabel,
+            customerEmail,
+            timeZoneId,
+            clientId,
+            source,
+            MapOutcome(result.ErrorCode),
+            httpStatus,
+            result.ReservationId,
+            result.Message);
+
+        await activityPublisher.PublishAsync(activity, cancellationToken);
+    }
+
+    private static ActivityOutcome MapOutcome(ReservationErrorCode code) => code switch
+    {
+        ReservationErrorCode.None => ActivityOutcome.Accepted,
+        ReservationErrorCode.SeatNotFound => ActivityOutcome.SeatNotFound,
+        ReservationErrorCode.SeatNotAvailable => ActivityOutcome.SeatNotAvailable,
+        ReservationErrorCode.LockNotAcquired => ActivityOutcome.LockNotAcquired,
+        ReservationErrorCode.ConcurrencyConflict => ActivityOutcome.ConcurrencyConflict,
+        _ => ActivityOutcome.BadRequest
+    };
 }

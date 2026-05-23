@@ -44,14 +44,20 @@ From the repository root:
 docker compose up --build
 ```
 
-| Service   | URL / port                          |
-|-----------|-------------------------------------|
-| API       | http://localhost:8080               |
-| Health    | http://localhost:8080/health        |
-| OpenAPI   | http://localhost:8080/openapi/v1.json (Development) |
-| RabbitMQ  | Management UI http://localhost:15672 (`hagss` / `hagss`) |
-| PostgreSQL| `localhost:5432`                    |
-| Redis     | `localhost:6379`                    |
+| Service        | URL / port                          |
+|----------------|-------------------------------------|
+| API            | http://localhost:8080               |
+| **Monitor UI** | **http://localhost:8081**           |
+| Load simulator | background worker (no public port)  |
+| Health         | http://localhost:8080/health        |
+| OpenAPI        | http://localhost:8080/openapi/v1.json (Development) |
+| RabbitMQ       | Management UI http://localhost:15672 (`hagss` / `hagss`) |
+| PostgreSQL     | `localhost:5432`                    |
+| Redis          | `localhost:6379`                    |
+
+The **load simulator** (`HAGSS.LoadSimulator`) starts after the API is healthy and runs continuous rounds. Each round picks a random number of users between 1 and 1000, assigns random timezones, and fires reservation requests against the sample event—with high probability of targeting the same “hot” seats to trigger race conditions.
+
+The **monitor** (`HAGSS.Monitor`) is a Blazor Server dashboard that streams live activity from the API via SignalR (`/hubs/reservations`), including accepts, conflicts, lock timeouts, and payment confirmations.
 
 On first startup the API applies EF migrations and seeds a sample event with 200 seats.
 
@@ -102,18 +108,33 @@ Start PostgreSQL, Redis, and RabbitMQ (or use Compose for infrastructure only):
 ```bash
 docker compose up postgres redis rabbitmq -d
 dotnet run --project HAGSS
+dotnet run --project HAGSS.Monitor
+dotnet run --project HAGSS.LoadSimulator
 ```
+
+## Solution projects
+
+| Project | Description |
+|---------|-------------|
+| `HAGSS` | Reservation API (Minimal APIs, EF Core, Redis, RabbitMQ) |
+| `HAGSS.Contracts` | Shared DTOs for activity events (API ↔ Monitor) |
+| `HAGSS.LoadSimulator` | Worker that simulates 1–1000 concurrent users per round |
+| `HAGSS.Monitor` | Blazor Server UI for real-time observability |
 
 ## Project structure
 
 ```
-HAGSS/
-├── Data/                 # EF Core context, entities, migrations
-├── Endpoints/            # Minimal API route mappings
-├── Infrastructure/       # Redis locks, RabbitMQ messaging
-├── Services/             # Reservation and payment logic
-├── Workers/              # RabbitMQ payment consumer
-└── Extensions/           # DI registration
+HAGSS/                    # API
+├── Data/
+├── Endpoints/
+├── Hubs/                 # SignalR reservation activity hub
+├── Infrastructure/
+├── Services/
+└── Workers/
+
+HAGSS.LoadSimulator/      # Load test worker
+HAGSS.Monitor/            # Live dashboard (Blazor Server)
+HAGSS.Contracts/          # Shared event contracts
 ```
 
 ## Configuration

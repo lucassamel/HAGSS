@@ -1,4 +1,5 @@
 using HAGSS.Data;
+using HAGSS.Hubs;
 using HAGSS.Infrastructure.Messaging;
 using HAGSS.Infrastructure.Redis;
 using HAGSS.Options;
@@ -19,6 +20,10 @@ public static class ServiceCollectionExtensions
 
         services.Configure<ReservationOptions>(configuration.GetSection(ReservationOptions.SectionName));
         services.Configure<RabbitMqOptions>(configuration.GetSection(RabbitMqOptions.SectionName));
+        services.Configure<CorsOptions>(configuration.GetSection(CorsOptions.SectionName));
+
+        services.AddSignalR();
+        services.AddSingleton<IReservationActivityPublisher, ReservationActivityPublisher>();
 
         services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(connections.Postgres));

@@ -6,5 +6,8 @@ public interface ISeatReservationService
         Guid eventId,
         Guid seatId,
         string customerEmail,
-        CancellationToken cancellationToken);
+        string? timeZoneId = null,
+        string? clientId = null,
+        string source = "api",
+        CancellationToken cancellationToken = default);
 }

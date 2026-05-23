@@ -43,7 +43,14 @@ public static class ReservationEndpoints
             ISeatReservationService reservationService,
             CancellationToken ct) =>
         {
-            var result = await reservationService.ReserveAsync(eventId, seatId, request.CustomerEmail, ct);
+            var result = await reservationService.ReserveAsync(
+                eventId,
+                seatId,
+                request.CustomerEmail,
+                request.TimeZoneId,
+                request.ClientId,
+                source: "api",
+                cancellationToken: ct);
 
             return result.ErrorCode switch
             {

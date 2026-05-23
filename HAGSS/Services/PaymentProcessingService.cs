@@ -1,3 +1,4 @@
+using HAGSS.Contracts;
 using HAGSS.Data;
 using HAGSS.Data.Entities;
 using HAGSS.Infrastructure.Messaging;
@@ -12,7 +13,10 @@ public interface IPaymentProcessingService
     Task ProcessAsync(PaymentMessage message, CancellationToken cancellationToken);
 }
 
-public sealed class PaymentProcessingService(AppDbContext db, ILogger<PaymentProcessingService> logger) : IPaymentProcessingService
+public sealed class PaymentProcessingService(
+    AppDbContext db,
+    IReservationActivityPublisher activityPublisher,
+    ILogger<PaymentProcessingService> logger) : IPaymentProcessingService
 {
     private static readonly ResiliencePipeline PaymentPipeline = CreatePaymentPipeline();
 
@@ -49,6 +53,22 @@ public sealed class PaymentProcessingService(AppDbContext db, ILogger<PaymentPro
 
         await db.SaveChangesAsync(cancellationToken);
         logger.LogInformation("Payment confirmed for reservation {ReservationId}", message.ReservationId);
+
+        var seatLabel = reservation.Seat is null ? null : $"{reservation.Seat.Row}-{reservation.Seat.Number}";
+        await activityPublisher.PublishAsync(new ReservationActivityEvent(
+            Guid.NewGuid(),
+            DateTime.UtcNow,
+            message.EventId,
+            message.SeatId,
+            seatLabel,
+            message.CustomerEmail,
+            null,
+            null,
+            "payment-worker",
+            ActivityOutcome.PaymentConfirmed,
+            StatusCodes.Status200OK,
+            message.ReservationId,
+            "Payment confirmed; seat marked as sold."), cancellationToken);
     }
 
     private static ResiliencePipeline CreatePaymentPipeline()
